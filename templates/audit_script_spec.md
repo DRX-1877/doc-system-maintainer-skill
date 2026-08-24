@@ -1,37 +1,37 @@
-# 巡检脚本生成规格书 (Spec for audit_doc_health.py)
+# Specification for audit_doc_health.py (JIT Generator Meta-Spec)
 
-本文件是 **AI-Native Spec-Driven** 巡检脚本生成契约。在 `mode: init` 阶段，AI 必须读取本规格，并结合当前项目的具体语言（Java / Python / TypeScript / Go 等）、Web 框架与分层架构，**即时（JIT）生成量身定制的 `scripts/audit_doc_health.py` 巡检门禁脚本**。
-
----
-
-## 🎯 1. 脚本目标与执行约束
-- **目标**：以确定性（Deterministic）、零外部库依赖（仅标准库）的方式，在毫秒级内完成代码与文档体系的对齐度巡检。
-- **环境约束**：纯 Python 3 标准库（`os`, `re`, `json`, `sys`, `argparse`），无需 `pip install` 额外包。
-- **门禁机制**：支持 `--strict` 与 `--min-score <float>` 命令行参数。当未通过检查时，必须返回非零退出码（`sys.exit(1)`），以阻断 Git 提交与 CI 流水线。
+This file defines the **AI-Native Spec-Driven contract** for generating the doc health inspection script. In `mode: init`, the AI reads this specification, analyzes the target project's language (Java, Python, TypeScript, Go, etc.), web framework, and directory layout, and **Just-In-Time (JIT) generates a tailored `scripts/audit_doc_health.py` physical gate script**.
 
 ---
 
-## 📥 2. 项目逆向提取逻辑 (由 AI 根据目标项目定制实现)
-
-### 2.1 API 路由提取器 (`find_endpoints`)
-AI 需根据项目的 Web 框架逆向编写路由提取逻辑：
-- **Spring Boot (Java/Kotlin)**：扫描 `@RestController`, `@RequestMapping`, `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`。
-- **FastAPI / Flask / Django (Python)**：扫描 `@app.get`, `@router.post`, `path(...)` 或 `urls.py`。
-- **NestJS / Express (TypeScript/JS)**：扫描 `@Controller`, `@Get`, `@Post` 或 `app.use('/api', ...)`。
-- **Gin / Echo (Go)**：扫描 `r.GET(...)`, `r.POST(...)`。
-
-### 2.2 核心领域模型提取器 (`find_domain_models`)
-- 扫描领域层（如 `domain/`, `models/`, `entities/`）提取核心 Class / Record / Struct / Schema 名称。
-
-### 2.3 Open-SWE 分层规则巡检 (`check_agents_hierarchy`)
-- **根目录 `AGENTS.md`**：验证是否存在、行数是否 $\le 120$ 行、大小是否 $\le 64\text{ KB}$。
-- **分层局部 `AGENTS.md`**：检测各关键子模块目录下是否存在局部规则文件，行数是否 $\le 60$ 行。
+## 🎯 1. Objective & Operational Constraints
+- **Objective**: Provide a deterministic, zero-external-dependency script to audit alignment between source code, specifications, and Open-SWE rule files in milliseconds.
+- **Runtime Constraints**: Pure Python 3 Standard Library only (`os`, `re`, `json`, `sys`, `argparse`). No `pip install` required.
+- **Gate Enforcement**: Must support `--strict` and `--min-score <float>` CLI flags. Return non-zero exit code (`sys.exit(1)`) on failure to block Git commits and CI pipelines.
 
 ---
 
-## 📤 3. 输出报表契约 (Standard JSON Output)
+## 📥 2. Project Reverse-Engineering Logic (Customized by AI per project)
 
-脚本在执行完毕后，必须向 `stdout` 输出结构化的 JSON 报表，格式如下：
+### 2.1 API Endpoint Extractor (`find_endpoints`)
+The AI writes regex/AST extractors tailored to the project's web framework:
+- **Spring Boot (Java/Kotlin)**: Scan `@RestController`, `@RequestMapping`, `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`.
+- **FastAPI / Flask / Django (Python)**: Scan `@app.get`, `@router.post`, `path(...)`, or `urls.py`.
+- **NestJS / Express (TypeScript/JS)**: Scan `@Controller`, `@Get`, `@Post`, or `app.use('/api', ...)`.
+- **Gin / Echo (Go)**: Scan `r.GET(...)`, `r.POST(...)`.
+
+### 2.2 Core Business Model Extractor (`find_domain_models`)
+- Scan business model directories (e.g., `domain/`, `models/`, `entities/`, `schemas/`) to extract Class, Record, Struct, or Model names.
+
+### 2.3 Open-SWE Rule Hierarchy Audit (`check_agents_hierarchy`)
+- **Root `AGENTS.md`**: Verify file existence, line count ($\le 120$ lines), and file size ($\le 64\text{ KB}$).
+- **Scoped `AGENTS.md`**: Inspect critical subsystems and test suite directories for presence and Token Budget compliance ($\le 60$ lines each).
+
+---
+
+## 📤 3. Standard JSON Output Contract
+
+Upon execution, the script must output a structured JSON report to `stdout`:
 
 ```json
 {
@@ -45,7 +45,8 @@ AI 需根据项目的 Web 框架逆向编写路由提取逻辑：
       "lean_budget_ok": true
     },
     "directory_scoped_agents": {
-      "app/.../domain/AGENTS.md": { "exists": true, "line_count": 25, "lean_budget_ok": true }
+      "app/.../domain/AGENTS.md": { "exists": true, "line_count": 25, "lean_budget_ok": true },
+      "app/.../test/AGENTS.md": { "exists": true, "line_count": 20, "lean_budget_ok": true }
     }
   },
   "core_documents_check": {
@@ -71,10 +72,10 @@ AI 需根据项目的 Web 框架逆向编写路由提取逻辑：
 
 ---
 
-## ⚡ 4. 退出码与错误拦截规则 (Exit Code Rules)
-1. 若指定 `--strict`：
-   - 存在任何 `missing_specs`（未写 Spec 的 API） $\rightarrow$ `sys.exit(1)`
-   - 存在任何 `missing_in_glossary`（未登记的 Domain 实体） $\rightarrow$ `sys.exit(1)`
-   - 核心文档（`AGENTS.md`, `architecture.md`, `domain-glossary.md`, `runbook.md`）缺失 $\rightarrow$ `sys.exit(1)`
-2. 若 `overall_health_score < min_score`（默认 90.0%） $\rightarrow$ `sys.exit(1)`
-3. 全部合规 $\rightarrow$ `sys.exit(0)`
+## ⚡ 4. Exit Code & Blocking Rules
+1. If `--strict` is enabled:
+   - Any `missing_specs` (undocumented API endpoints) $\rightarrow$ `sys.exit(1)`
+   - Any `missing_in_glossary` (unregistered models) $\rightarrow$ `sys.exit(1)`
+   - Any missing core docs (`AGENTS.md`, `architecture.md`, `domain-glossary.md`, `runbook.md`) $\rightarrow$ `sys.exit(1)`
+2. If `overall_health_score < min_score` (default 90.0%) $\rightarrow$ `sys.exit(1)`
+3. All compliant $\rightarrow$ `sys.exit(0)`

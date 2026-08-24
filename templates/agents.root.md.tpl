@@ -1,43 +1,43 @@
-# 全局 AI 编程协同准则 (AGENTS.md)
+# Global AI Coding Rules (AGENTS.md)
 
-本文件是 AI 编程助手（如 Antigravity / Open-SWE / Cursor / Claude Code 等）在本项目中执行任务时的**全局指引与硬性约束**。
-
----
-
-## ⚖️ 规则优先级裁决体系 (Precedence Hierarchy)
-在发生规则冲突时，AI 必须严格按照以下优先级进行裁决：
-1. **【最高优先级】** 当前操作文件所在子目录或祖先目录下的 `AGENTS.md`（局部细粒度约束）。
-2. **【次高优先级】** 本文件（项目根目录 `AGENTS.md`，全局架构红线与命令）。
-3. **【业务优先级】** `docs/specs/*.md` 需求规格说明书。
-4. **【最低优先级】** AI 模型自身的通用偏好与默认统计习惯。
+This file serves as the **global baseline and non-negotiable constraints** for AI coding assistants (e.g., Antigravity, Open-SWE, Cursor, Claude Code) working on this codebase.
 
 ---
 
-## 🛠️ 1. 技术栈与环境规范
-- **开发语言**：{{LANGUAGE_AND_VERSION}}
-- **核心框架**：{{FRAMEWORK_AND_VERSION}}
-- **构建工具**：{{BUILD_TOOL}}
-- **数据库/中间件**：{{DATABASE_AND_MIDDLEWARE}}
+## ⚖️ Precedence Hierarchy
+In case of conflicting rules, AI agents MUST resolve precedence in the following strict order:
+1. **[Highest Precedence]** `AGENTS.md` located in the current working subdirectory or nearest ancestor directory (Scoped rules).
+2. **[Second Precedence]** This file (Root `AGENTS.md` containing global architectural red lines and commands).
+3. **[Business Precedence]** `docs/specs/*.md` feature specification documents.
+4. **[Lowest Precedence]** The LLM's own general defaults and statistical biases.
 
 ---
 
-## ⚡ 2. 开发者高频命令清单 (必须能复制即用)
-| 操作 | 命令 | 说明 |
+## 🛠️ 1. Tech Stack & Runtime Environment
+- **Language**: {{LANGUAGE_AND_VERSION}}
+- **Framework**: {{FRAMEWORK_AND_VERSION}}
+- **Build Tool**: {{BUILD_TOOL}}
+- **Database / Middleware**: {{DATABASE_AND_MIDDLEWARE}}
+
+---
+
+## ⚡ 2. Common Developer Commands (Must be copy-pasteable)
+| Action | Command | Description |
 | :--- | :--- | :--- |
-| **完整质量校验** | `{{CMD_CHECK}}` | 包含所有测试、覆盖率验证与格式检查 |
-| **运行单元测试** | `{{CMD_UNIT_TEST}}` | 快速执行单元测试 |
-| **自动格式化代码** | `{{CMD_FORMAT}}` | 格式化代码规范 |
-| **本地启动应用** | `{{CMD_RUN}}` | 本地启动开发服务 |
+| **Full Quality Check** | `{{CMD_CHECK}}` | Run all tests, coverage gates, and linter/format checks |
+| **Unit Tests** | `{{CMD_UNIT_TEST}}` | Fast in-memory unit tests execution |
+| **Format Code** | `{{CMD_FORMAT}}` | Auto-format codebase |
+| **Run Locally** | `{{CMD_RUN}}` | Start local development server |
 
 ---
 
-## 🏛️ 3. 架构分层不可侵犯红线 (Red Lines)
+## 🏛️ 3. Architectural Red Lines
 {{ARCHITECTURE_RED_LINES}}
 
 ---
 
-## 📋 4. 编码与交付规范
-1. **不可变性**：{{IMMUTABILITY_RULES}}
-2. **错误处理**：遵循标准错误规范（如 RFC 7807 `ProblemDetail`），统一通过全局异常处理器转换。
-3. **测试驱动 (TDD/ATDD)**：新增功能必须先在 `docs/specs/` 明确验收标准，编写测试变红后再编写业务实现。
-4. **Token 预算控制**：本文件保持精炼（< 100 行），具体业务规则分流至 `docs/specs/`。
+## 📋 4. Coding & Delivery Standards
+1. **Immutability**: {{IMMUTABILITY_RULES}}
+2. **Error Handling**: Adhere to standard error structures (e.g., RFC 7807 `ProblemDetail`), handled via global exception interceptors.
+3. **Double-Loop ATDD**: New features MUST define BDD acceptance criteria in `docs/specs/` and write failing tests (Red 🔴) before implementation (Green 🟢).
+4. **Token Budget Control**: Keep this file lean (< 100 lines). Detailed business specifications belong in `docs/specs/`.

@@ -1,35 +1,35 @@
-# 需求规格说明书：{{FEATURE_ID}} {{FEATURE_NAME}}
+# Feature Specification: {{FEATURE_ID}} {{FEATURE_NAME}}
 
-## 1. 业务背景与用户故事
+## 1. Business Context & User Story
 
-- **用户故事**：作为一个 {{ROLE}}，我希望能够 {{ACTION}}，以便 {{BENEFIT}}。
-- **业务价值**：{{BUSINESS_VALUE}}
+- **User Story**: As a {{ROLE}}, I want to {{ACTION}} so that {{BENEFIT}}.
+- **Business Value**: {{BUSINESS_VALUE}}
 
 ---
 
-## 2. 验收标准 (Acceptance Criteria - BDD)
+## 2. Acceptance Criteria (BDD)
 
-### 场景 1：{{HAPPY_PATH_NAME}} (正常主流程)
+### Scenario 1: {{HAPPY_PATH_NAME}} (Happy Path)
 - **Given** {{PRECONDITION}}
-- **When** 用户发起 `{{HTTP_METHOD}} {{ENDPOINT}}` 请求，携带合法参数
-- **Then** 系统应返回 HTTP `{{SUCCESS_STATUS}}`，且满足：
+- **When** User sends a `{{HTTP_METHOD}} {{ENDPOINT}}` request with valid payload
+- **Then** System returns HTTP `{{SUCCESS_STATUS}}`, satisfying:
   1. {{EXPECTED_RESULT_1}}
   2. {{EXPECTED_RESULT_2}}
 
-### 场景 2：字段校验与非法输入拦截 (异常流程)
-- **Given** 用户提交请求
-- **When** 发生以下任一情况：
+### Scenario 2: Validation & Error Handling (Unhappy Path)
+- **Given** User submits a request
+- **When** Any of the following occurs:
   - {{VALIDATION_CASE_1}}
   - {{VALIDATION_CASE_2}}
-- **Then** 系统应返回 HTTP `400 Bad Request`，且响应格式符合 RFC 7807 `ProblemDetail` 标准。
+- **Then** System returns HTTP `400 Bad Request`, adhering to RFC 7807 `ProblemDetail` specification.
 
-### 场景 3：权限与安全性拦截
-- **Given** 请求缺少有效认证信息
-- **Then** 系统返回 HTTP `403 Forbidden`。
+### Scenario 3: Authorization & Security Guardrails
+- **Given** Request lacks valid authentication credentials
+- **Then** System returns HTTP `401 Unauthorized` / `403 Forbidden`.
 
 ---
 
-## 3. 接口契约规范 (API Contract)
+## 3. API Contract Specification
 
 - **HTTP Method**: `{{HTTP_METHOD}}`
 - **Path**: `{{ENDPOINT}}`
@@ -37,12 +37,12 @@
   - `Authorization`: `Bearer {token}`
   - `Content-Type`: `application/json`
 
-### 请求体示例
+### Request Payload Example
 ```json
 {{REQUEST_JSON_SAMPLE}}
 ```
 
-### 响应体示例
+### Response Payload Example
 ```json
 {{RESPONSE_JSON_SAMPLE}}
 ```

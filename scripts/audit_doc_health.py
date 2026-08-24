@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 audit_doc_health.py
-AI 核心文档体系、Open-SWE 规范注入与代码一致性自动化巡检脚本
+Deterministic health audit and physical gate script for Open-SWE hierarchical context engineering and ATDD alignment.
 """
 
 import os
@@ -23,19 +23,19 @@ def find_java_endpoints(workspace_root):
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                     
-                    # 获取类级别的 RequestMapping
+                    # Extract class-level RequestMapping
                     class_mapping = ""
                     class_match = re.search(r'@RequestMapping\(["\'](.*?)["\']\)', content)
                     if class_match:
                         class_mapping = class_match.group(1)
 
-                    # 匹配 PostMapping
+                    # Extract PostMapping
                     for m in re.finditer(r'@PostMapping(?:\(["\'](.*?)["\']\))?', content):
                         path = m.group(1) or ""
                         full_path = f"{class_mapping}{path}".replace("//", "/")
                         endpoints.append({"method": "POST", "path": full_path, "controller": file})
 
-                    # 匹配 GetMapping
+                    # Extract GetMapping
                     for m in re.finditer(r'@GetMapping(?:\(["\'](.*?)["\']\))?', content):
                         path = m.group(1) or ""
                         full_path = f"{class_mapping}{path}".replace("//", "/")
@@ -56,7 +56,7 @@ def find_domain_classes(workspace_root):
     return domain_classes
 
 def check_agents_hierarchy(workspace_root):
-    """巡检 Open-SWE 分层 AGENTS.md 规范与 Token 预算"""
+    """Audit Open-SWE hierarchical AGENTS.md files and token budgets."""
     root_agents = os.path.join(workspace_root, "AGENTS.md")
     root_exists = os.path.exists(root_agents)
     root_line_count = 0
@@ -67,7 +67,7 @@ def check_agents_hierarchy(workspace_root):
             root_line_count = len(lines)
         root_size_bytes = os.path.getsize(root_agents)
 
-    # 检查常见架构分层与测试套件的局部 AGENTS.md
+    # Inspect scoped AGENTS.md candidates
     scoped_candidates = [
         "app/src/main/java/com/example/demo/domain/AGENTS.md",
         "app/src/main/java/com/example/demo/adapter/web/AGENTS.md",
@@ -100,29 +100,44 @@ def check_agents_hierarchy(workspace_root):
         "directory_scoped_agents": scoped_status
     }
 
+def check_core_docs(workspace_root):
+    core_files = [
+        "AGENTS.md",
+        "docs/architecture.md",
+        "docs/domain-glossary.md",
+        "docs/runbook.md"
+    ]
+    status = {}
+    for rel_path in core_files:
+        full_path = os.path.join(workspace_root, rel_path)
+        status[rel_path] = os.path.exists(full_path)
+    return status
+
 def check_specs(workspace_root, endpoints):
     specs_dir = os.path.join(workspace_root, "docs/specs")
-    existing_specs = []
-    if os.path.exists(specs_dir):
-        for file in os.listdir(specs_dir):
+    if not os.path.exists(specs_dir):
+        return [], [f"{ep['method']} {ep['path']}" for ep in endpoints]
+
+    spec_contents = ""
+    for root, _, files in os.walk(specs_dir):
+        for file in files:
             if file.endswith(".md"):
-                with open(os.path.join(specs_dir, file), "r", encoding="utf-8") as f:
-                    existing_specs.append({"file": file, "content": f.read()})
+                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                    spec_contents += f.read() + "\n"
 
-    missing_specs = []
-    matched_specs = []
+    matched_endpoints = []
+    missing_endpoints = []
+
     for ep in endpoints:
-        matched = False
-        base_path = re.sub(r'\{.*?\}', '', ep["path"])
-        for spec in existing_specs:
-            if ep["path"] in spec["content"] or (base_path and base_path in spec["content"]):
-                matched = True
-                matched_specs.append({"endpoint": f"{ep['method']} {ep['path']}", "spec": spec["file"]})
-                break
-        if not matched:
-            missing_specs.append(f"{ep['method']} {ep['path']} (Controller: {ep['controller']})")
+        # Match HTTP method and path
+        path_pattern = ep["path"].replace("{", r"\{").replace("}", r"\}")
+        pattern = rf"{ep['method']}.*?{path_pattern}"
+        if re.search(pattern, spec_contents, re.IGNORECASE) or ep["path"] in spec_contents:
+            matched_endpoints.append(f"{ep['method']} {ep['path']}")
+        else:
+            missing_endpoints.append(f"{ep['method']} {ep['path']} (Controller: {ep['controller']})")
 
-    return matched_specs, missing_specs
+    return matched_endpoints, missing_endpoints
 
 def check_glossary(workspace_root, domain_classes):
     glossary_path = os.path.join(workspace_root, "docs/domain-glossary.md")
@@ -130,43 +145,28 @@ def check_glossary(workspace_root, domain_classes):
         return [], domain_classes
 
     with open(glossary_path, "r", encoding="utf-8") as f:
-        content = f.read()
+        glossary_content = f.read()
 
     matched_classes = []
     missing_classes = []
+
     for cls in domain_classes:
-        if cls in content:
+        if cls in glossary_content:
             matched_classes.append(cls)
         else:
             missing_classes.append(cls)
 
     return matched_classes, missing_classes
 
-def check_core_docs(workspace_root):
-    required_files = [
-        "AGENTS.md",
-        "docs/architecture.md",
-        "docs/domain-glossary.md",
-        "docs/runbook.md",
-    ]
-    status = {}
-    for req in required_files:
-        full_path = os.path.join(workspace_root, req)
-        status[req] = os.path.exists(full_path)
-    return status
-
 def main():
-    parser = argparse.ArgumentParser(description="AI 文档与代码一致性自动化巡检脚本")
-    parser.add_argument("--strict", action="store_true", help="严格模式：发现未登记项或核心文档缺失时以非零退出码中断")
-    parser.add_argument("--min-score", type=float, default=90.0, help="最低健康度分数阈值 (默认 90.0)")
+    parser = argparse.ArgumentParser(description="Audit documentation alignment and health gates")
+    parser.add_argument("--workspace", default=".", help="Root directory of the workspace")
+    parser.add_argument("--strict", action="store_true", help="Enable strict gate mode (exit 1 on any misalignment)")
+    parser.add_argument("--min-score", type=float, default=90.0, help="Minimum health score threshold (default: 90.0)")
     args = parser.parse_args()
 
-    # 查找工作区根目录
-    current_dir = os.path.abspath(os.path.dirname(__file__))
-    workspace_root = os.path.abspath(os.path.join(current_dir, "../../../"))
-    
-    # 验证是否为项目根目录
-    if not os.path.exists(os.path.join(workspace_root, "app")):
+    workspace_root = os.path.abspath(args.workspace)
+    if not os.path.exists(workspace_root):
         workspace_root = os.getcwd()
 
     core_docs = check_core_docs(workspace_root)
@@ -208,18 +208,18 @@ def main():
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
 
-    # 严格门禁检查逻辑
+    # Strict physical gate verification
     if args.strict:
         has_violations = bool(missing_specs or missing_classes or existing_core < total_core)
         if has_violations or not is_healthy:
-            print("\n❌ [Doc Guard 拦截] 检测到文档与代码未完全对齐或核心文档缺失！", file=sys.stderr)
+            print("\n❌ [Doc Guard Intercepted] Code and documentation misalignment or missing core artifacts detected!", file=sys.stderr)
             if missing_specs:
-                print(f"  - 缺少 API 规格说明书: {missing_specs}", file=sys.stderr)
+                print(f"  - Missing API Specifications: {missing_specs}", file=sys.stderr)
             if missing_classes:
-                print(f"  - 领域词汇表中缺少实体登记: {missing_classes}", file=sys.stderr)
+                print(f"  - Unregistered Domain Models in glossary: {missing_classes}", file=sys.stderr)
             if existing_core < total_core:
                 missing_core = [k for k, v in core_docs.items() if not v]
-                print(f"  - 缺少核心文档: {missing_core}", file=sys.stderr)
+                print(f"  - Missing Core Documents: {missing_core}", file=sys.stderr)
             sys.exit(1)
 
     if not is_healthy:

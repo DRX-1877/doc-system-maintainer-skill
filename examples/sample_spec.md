@@ -1,19 +1,20 @@
-# 样例参考 (Sample Spec)
+# Sample Specification (Given-When-Then Reference)
 
-本文件提供一个标准的 Given-When-Then BDD 需求规格范例，供 AI 学习参考。
+This document provides a standard BDD specification reference for AI agents.
 
-## 需求规格说明书：YCB-DEMO 示例需求
+## Feature Specification: DEMO-001 Coupon Discount Calculation
 
-### 1. 业务背景
-用户需要能够使用优惠券抵扣订单金额。
+### 1. Business Context
+Users should be able to apply valid promotional coupons to deduct order subtotals.
 
-### 2. 验收标准
-#### 场景 1：成功抵扣
-- **Given** 用户拥有一张面额 10 元、满 50 可用的优惠券
-- **When** 用户下单金额为 60 元并选择该券
-- **Then** 系统计算 finalAmount 应扣减 10 元，并返回 201 Created。
+### 2. Acceptance Criteria (BDD)
 
-#### 场景 2：门槛不足
-- **Given** 订单金额 40 元
-- **When** 用户尝试使用满 50 优惠券
-- **Then** 系统返回 400 Bad Request，detail: "未达到优惠券使用门槛"。
+#### Scenario 1: Successful Coupon Application (Happy Path)
+- **Given** User owns a coupon with $10 discount valid for orders over $50
+- **When** User submits an order with items total of $60 and selects this coupon
+- **Then** System deducts $10 from final amount and responds with HTTP `201 Created`.
+
+#### Scenario 2: Subtotal Below Threshold (Unhappy Path)
+- **Given** Order items total is $40
+- **When** User attempts to apply a coupon requiring a minimum spend of $50
+- **Then** System responds with HTTP `400 Bad Request` and error detail "Minimum order amount not met".

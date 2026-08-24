@@ -1,21 +1,21 @@
-# 运行与联调排错手册 (Runbook)
+# Operational Runbook & Troubleshooting Guide
 
-本文档提供项目的快速启动、环境配置、端到端接口自测与常见问题排查指南。
+This document provides guidelines for local bootstrapping, environment setup, live API verification, and troubleshooting FAQ.
 
 ---
 
-## ⚡ 1. 快速启动与环境准备
+## ⚡ 1. Quickstart & Local Setup
 
-- **语言与环境要求**：{{RUNTIME_REQUIREMENT}}
-- **启动命令**：
+- **Runtime Requirements**: {{RUNTIME_REQUIREMENT}}
+- **Start Command**:
   ```bash
   {{START_COMMAND}}
   ```
-- **服务监听端口**：`{{PORT}}`
+- **Listening Port**: `{{PORT}}`
 
 ---
 
-## 🧪 2. 真实 API 快速联调脚本
+## 🧪 2. Live API Smoke Test Scripts
 
 ```bash
 {{CURL_COMMAND_EXAMPLE}}
@@ -23,8 +23,8 @@
 
 ---
 
-## 🛠️ 3. 常见问题排查 (Troubleshooting)
+## 🛠️ 3. Troubleshooting & FAQ
 
 ### Q1: {{ISSUE_1}}
-- **原因**：{{CAUSE_1}}
-- **解决**：{{SOLUTION_1}}
+- **Root Cause**: {{CAUSE_1}}
+- **Resolution**: {{SOLUTION_1}}
