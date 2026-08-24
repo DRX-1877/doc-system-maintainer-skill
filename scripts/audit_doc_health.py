@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 audit_doc_health.py
-AI 核心文档体系与代码一致性自动化巡检脚本
+AI 核心文档体系、Open-SWE 规范注入与代码一致性自动化巡检脚本
 """
 
 import os
 import re
 import json
 import sys
+import argparse
 
 def find_java_endpoints(workspace_root):
     endpoints = []
@@ -54,6 +55,48 @@ def find_domain_classes(workspace_root):
                 domain_classes.append(class_name)
     return domain_classes
 
+def check_agents_hierarchy(workspace_root):
+    """巡检 Open-SWE 分层 AGENTS.md 规范与 Token 预算"""
+    root_agents = os.path.join(workspace_root, "AGENTS.md")
+    root_exists = os.path.exists(root_agents)
+    root_line_count = 0
+    root_size_bytes = 0
+    if root_exists:
+        with open(root_agents, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            root_line_count = len(lines)
+        root_size_bytes = os.path.getsize(root_agents)
+
+    # 检查常见架构分层的局部 AGENTS.md
+    scoped_candidates = [
+        "app/src/main/java/com/example/demo/domain/AGENTS.md",
+        "app/src/main/java/com/example/demo/adapter/web/AGENTS.md",
+        "app/src/main/java/com/example/demo/adapter/persistence/AGENTS.md",
+    ]
+    scoped_status = {}
+    for rel_path in scoped_candidates:
+        full_path = os.path.join(workspace_root, rel_path)
+        exists = os.path.exists(full_path)
+        line_count = 0
+        if exists:
+            with open(full_path, "r", encoding="utf-8") as f:
+                line_count = len(f.readlines())
+        scoped_status[rel_path] = {
+            "exists": exists,
+            "line_count": line_count,
+            "lean_budget_ok": line_count <= 60 if exists else False
+        }
+
+    return {
+        "root_agents_md": {
+            "exists": root_exists,
+            "line_count": root_line_count,
+            "size_bytes": root_size_bytes,
+            "lean_budget_ok": root_line_count <= 120 and root_size_bytes <= 64 * 1024
+        },
+        "directory_scoped_agents": scoped_status
+    }
+
 def check_specs(workspace_root, endpoints):
     specs_dir = os.path.join(workspace_root, "docs/specs")
     existing_specs = []
@@ -67,7 +110,6 @@ def check_specs(workspace_root, endpoints):
     matched_specs = []
     for ep in endpoints:
         matched = False
-        # 去掉路径变量如 {orderId}
         base_path = re.sub(r'\{.*?\}', '', ep["path"])
         for spec in existing_specs:
             if ep["path"] in spec["content"] or (base_path and base_path in spec["content"]):
@@ -111,6 +153,11 @@ def check_core_docs(workspace_root):
     return status
 
 def main():
+    parser = argparse.ArgumentParser(description="AI 文档与代码一致性自动化巡检脚本")
+    parser.add_argument("--strict", action="store_true", help="严格模式：发现未登记项或核心文档缺失时以非零退出码中断")
+    parser.add_argument("--min-score", type=float, default=90.0, help="最低健康度分数阈值 (默认 90.0)")
+    args = parser.parse_args()
+
     # 查找工作区根目录
     current_dir = os.path.abspath(os.path.dirname(__file__))
     workspace_root = os.path.abspath(os.path.join(current_dir, "../../../"))
@@ -120,6 +167,7 @@ def main():
         workspace_root = os.getcwd()
 
     core_docs = check_core_docs(workspace_root)
+    agents_hierarchy = check_agents_hierarchy(workspace_root)
     endpoints = find_java_endpoints(workspace_root)
     domain_classes = find_domain_classes(workspace_root)
     
@@ -134,10 +182,12 @@ def main():
     domain_coverage = (len(matched_classes) / len(domain_classes) * 100) if domain_classes else 100
 
     overall_health = round((core_score * 0.4 + api_coverage * 0.3 + domain_coverage * 0.3), 1)
+    is_healthy = overall_health >= args.min_score
 
     report = {
         "overall_health_score": f"{overall_health}%",
-        "status": "HEALTHY" if overall_health >= 90 else "NEEDS_ATTENTION",
+        "status": "HEALTHY" if is_healthy else "NEEDS_ATTENTION",
+        "context_engineering_open_swe": agents_hierarchy,
         "core_documents_check": core_docs,
         "api_spec_coverage": {
             "total_endpoints_found": len(endpoints),
@@ -154,6 +204,25 @@ def main():
     }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    # 严格门禁检查逻辑
+    if args.strict:
+        has_violations = bool(missing_specs or missing_classes or existing_core < total_core)
+        if has_violations or not is_healthy:
+            print("\n❌ [Doc Guard 拦截] 检测到文档与代码未完全对齐或核心文档缺失！", file=sys.stderr)
+            if missing_specs:
+                print(f"  - 缺少 API 规格说明书: {missing_specs}", file=sys.stderr)
+            if missing_classes:
+                print(f"  - 领域词汇表中缺少实体登记: {missing_classes}", file=sys.stderr)
+            if existing_core < total_core:
+                missing_core = [k for k, v in core_docs.items() if not v]
+                print(f"  - 缺少核心文档: {missing_core}", file=sys.stderr)
+            sys.exit(1)
+
+    if not is_healthy:
+        sys.exit(1)
+
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
