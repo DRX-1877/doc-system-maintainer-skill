@@ -67,11 +67,14 @@ def check_agents_hierarchy(workspace_root):
             root_line_count = len(lines)
         root_size_bytes = os.path.getsize(root_agents)
 
-    # 检查常见架构分层的局部 AGENTS.md
+    # 检查常见架构分层与测试套件的局部 AGENTS.md
     scoped_candidates = [
         "app/src/main/java/com/example/demo/domain/AGENTS.md",
         "app/src/main/java/com/example/demo/adapter/web/AGENTS.md",
         "app/src/main/java/com/example/demo/adapter/persistence/AGENTS.md",
+        "app/src/test/AGENTS.md",
+        "app/src/contractTest/AGENTS.md",
+        "app/src/integrationTest/AGENTS.md",
     ]
     scoped_status = {}
     for rel_path in scoped_candidates:

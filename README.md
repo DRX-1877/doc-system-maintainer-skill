@@ -21,21 +21,18 @@ your-project/
 ├── .github/workflows/ci.yml                 # 🛡️ CI/CD 物理门禁（流水线自动拦截未对齐变更）
 ├── .pre-commit-config.yaml                  # 🛡️ Git Pre-commit 本地拦截门禁
 ├── AGENTS.md                                # 1. 🌐 全局根规则（技术栈、高频命令、全局红线）
-├── app/src/main/java/com/example/demo/
-│   ├── domain/
-│   │   └── AGENTS.md                        # 🎯 领域层专有规则（纯 POJO、禁止 Spring/JPA、禁止 @Setter）
-│   ├── application/
-│   │   └── AGENTS.md                        # 🎯 应用层专有规则（只定义 Port 接口、接收 Command/Query）
-│   └── adapter/
-│       ├── web/
-│       │   └── AGENTS.md                    # 🎯 Web 适配器规则（DTO 隔离、RFC 7807 统一异常、禁止暴露 Entity）
-│       └── persistence/
-│           └── AGENTS.md                    # 🎯 持久化规则（Entity 与 Domain 互转、JPA 映射隔离）
+├── app/src/
+│   ├── main/.../domain/AGENTS.md            # 🎯 领域层专有规则（纯 POJO、禁止 Spring/JPA、禁止 @Setter）
+│   ├── main/.../adapter/web/AGENTS.md       # 🎯 Web 适配器规则（DTO 隔离、RFC 7807 统一异常）
+│   ├── main/.../adapter/persistence/AGENTS.md # 🎯 持久化规则（Entity 与 Domain 互转、JPA 映射隔离）
+│   ├── test/AGENTS.md                       # 🧪 单元测试专属规范（AssertJ, 纯内存, 严禁启动 Spring 上下文）
+│   ├── contractTest/AGENTS.md               # 🧪 契约测试专属规范（Groovy DSL, CDC 契约映射约束）
+│   └── integrationTest/AGENTS.md            # 🧪 集成测试专属规范（MockMvc, H2 隔离自测）
 ├── docs/
 │   ├── specs/                               # 2. 📋 规格驱动需求说明书 (BDD Given-When-Then)
 │   ├── architecture.md                      # 3. 🏛️ 架构设计全景图
 │   ├── adr/                                 # 3. 🏛️ 架构决策记录 (ADRs)
-│   ├── domain-glossary.md                   # 4. 📖 领域统一语言表 (DDD 实体、值对象、状态机)
+│   ├── domain-glossary.md                   # 4. 📖 领域统一语言表与模型拓扑树
 │   ├── tasks/                               # 5. 📝 任务细粒度 Checklist 实施记录
 │   └── runbook.md                           # 6. 🚀 快速启动与 API 自测排错手册
 └── scripts/
@@ -135,7 +132,8 @@ doc-system-maintainer/
 ├── SKILL.md                          # 🧠 大脑指挥中心：YAML 元数据 + SOP 状态机
 ├── templates/                        # 📐 核心文档与脚本的标准生成规格 (Meta-Specs)
 │   ├── agents.root.md.tpl           #     - Open-SWE 全局根目录规范模版
-│   ├── agents.scoped.md.tpl         #     - Open-SWE 目录级局部规范模版
+│   ├── agents.scoped.md.tpl         #     - Open-SWE 业务分层局部规范模版
+│   ├── agents.test.md.tpl           #     - Open-SWE 测试套件专属规范模版 (单测/契约/集成)
 │   ├── audit_script_spec.md         #     - AI-Native 巡检脚本生成契约规格
 │   ├── spec.md.tpl                  #     - BDD (Given-When-Then) 规格模版
 │   ├── adr.md.tpl                   #     - 架构决策记录模版
