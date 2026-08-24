@@ -1,28 +1,28 @@
-# 领域统一语言与数据字典 (Domain Glossary)
+# 核心业务模型与统一语言字典 (Business Models & Domain Glossary)
 
-本文档定义系统的**通用语言（Ubiquitous Language）**。所有代码命名（类名、字段名、数据库列名、API 字段名）必须严格与本字典保持一致。
+本文档定义系统的**通用语言与核心数据模型（Ubiquitous Language & Core Models）**。所有代码命名（类名、字段名、数据库列名、API 字段名）必须严格与本字典保持一致。
 
 ---
 
-## 🌳 1. 领域层分包与模型拓扑树 (Domain Package & Model Topology)
+## 🌳 1. 核心业务模型分包与拓扑树 (Model Structure & Topology)
 
-AI 在初始化或维护本文件时，**必须扫描 `domain/` 目录并绘制当前领域模型与子域拓扑树**，清晰标注各包的职责定位（如核心聚合根 vs 跨上下文弱引用）：
+AI 在初始化或维护本文件时，**需根据项目实际架构风格（如 DDD、传统 MVC、FastAPI 数据驱动、Go Clean Arch 等）**，扫描业务模型所在目录（如 `domain/`、`models/`、`entity/`、`types/`、`schemas/`），绘制反映该项目真实形态的分包与模型拓扑树，并标注其架构角色：
 
 ```text
-{{DOMAIN_DIRECTORY_TREE}}
+{{MODEL_DIRECTORY_TREE}}
 ```
 
 ---
 
-## 📖 2. 核心实体与值对象字典
+## 📖 2. 核心概念与数据模型字典 (Data Models Dictionary)
 
-| 领域术语 | 英文命名 | 类型 / 表现形式 | 业务含义与约束 | 代码对应类 |
+| 业务概念 / 术语 | 英文标识 / 类名 | 架构角色 / 类型 | 业务含义与约束 | 代码所在文件 / 路径 |
 | :--- | :--- | :--- | :--- | :--- |
-| **{{TERM_1}}** | `{{NAME_1}}` | {{TYPE_1}} | {{DESCRIPTION_1}} | `{{CLASS_1}}` |
+| **{{TERM_1}}** | `{{NAME_1}}` | {{ROLE_1}} | {{DESCRIPTION_1}} | `{{PATH_1}}` |
 
 ---
 
-## 🔄 3. 状态机流转图 (Status Lifecycle)
+## 🔄 3. 业务生命周期与状态流转图 (Status Lifecycle)
 
 ```mermaid
 stateDiagram-v2
