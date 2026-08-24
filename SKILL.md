@@ -36,7 +36,7 @@ AI 在执行本技能的任何模式时，必须严格遵守以下 4 大黄金�
    - **根目录 `AGENTS.md`**：读取 `templates/agents.root.md.tpl` 生成全局技术栈、常用命令与全局红线。
    - **分层局部 `AGENTS.md`（可选/推荐）**：为核心分层（如 `domain/`、`adapter/web/`、`adapter/persistence/`）读取 `templates/agents.scoped.md.tpl` 生成专属隔离规则。
    - **架构与决策**：`docs/architecture.md`（架构图与依赖流向）及 `docs/adr/0001-...`（基础架构决策）。
-   - **领域统一语言**：`docs/domain-glossary.md`（扫描实体提炼词汇表与状态机）。
+   - **领域统一语言**：`docs/domain-glossary.md`（**必须生成领域分包与模型拓扑树**，清晰标注核心聚合根、子域划分与跨上下文弱引用，并提炼词汇表与状态机）。
    - **需求规格基线**：`docs/specs/`（现有核心功能的规格说明书）。
    - **运行排错手册**：`docs/runbook.md`（快速启动与自测脚本指南）。
 3. **AI-Native 即时生成（JIT）专属巡检脚本与 CI 门禁**：
