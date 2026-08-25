@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 audit_doc_health.py
-Deterministic health audit and physical gate script for Open-SWE hierarchical context engineering and ATDD alignment.
-Dynamically supports Spring Boot, Modular Monoliths (e.g. yudao-boot, ruoyi), DDD Hexagonal, and FastAPI/Go frameworks.
+Deterministic health audit, auto-healing physical gate script for Open-SWE hierarchical context engineering and ATDD alignment.
+Supports automatic documentation synchronization with `--fix` / `--auto-update`.
 """
 
 import os
@@ -19,21 +19,17 @@ def find_java_endpoints(workspace_root, target_modules=None):
     endpoints = []
     workspace_path = Path(workspace_root)
     
-    # Exclude common build directories and standard framework infrastructure modules unless explicitly targeted
     exclude_dirs = {"target", "build", ".git", "node_modules", ".gradle"}
     framework_builtin_modules = {"yudao-module-infra", "yudao-module-bpm", "yudao-module-report", "yudao-module-crm", "yudao-module-erp", "yudao-module-ai"}
     
     for controller_file in workspace_path.glob("**/*Controller.java"):
-        # Check if inside excluded directory
         if any(part in exclude_dirs for part in controller_file.parts):
             continue
             
-        # If target_modules is specified, only scan matching modules
         if target_modules:
             if not any(m in controller_file.parts for m in target_modules):
                 continue
         else:
-            # Default to business modules (e.g. pet, open, mall) and skip heavy third-party demos/infra
             if any(f_mod in controller_file.parts for f_mod in framework_builtin_modules):
                 continue
 
@@ -42,13 +38,11 @@ def find_java_endpoints(workspace_root, target_modules=None):
         except Exception:
             continue
 
-        # Extract class-level RequestMapping
         class_mapping = ""
         class_match = re.search(r'@RequestMapping\(["\'](.*?)["\']\)', content)
         if class_match:
             class_mapping = class_match.group(1)
 
-        # Extract method-level mappings
         for method_type in ["PostMapping", "GetMapping", "PutMapping", "DeleteMapping"]:
             for m in re.finditer(rf'@{method_type}\(.*?["\'](.*?)["\'].*?\)', content):
                 sub_path = m.group(1) or ""
@@ -76,7 +70,6 @@ def find_domain_classes(workspace_root, target_modules=None):
             continue
         if target_modules and not any(m in entity_file.parts for m in target_modules):
             continue
-        # Match Entity, DO, or Model classes
         if "dataobject" in entity_file.parts or "domain" in entity_file.parts or entity_file.name.endswith("DO.java") or entity_file.name.endswith("Entity.java"):
             domain_classes.append(entity_file.stem)
 
@@ -94,7 +87,6 @@ def check_agents_hierarchy(workspace_root):
             root_line_count = len(lines)
         root_size_bytes = os.path.getsize(root_agents)
 
-    # Search for scoped AGENTS.md
     workspace_path = Path(workspace_root)
     scoped_status = {}
     for scoped_file in workspace_path.glob("**/AGENTS.md"):
@@ -135,7 +127,7 @@ def check_core_docs(workspace_root):
 def check_specs(workspace_root, endpoints):
     specs_dir = os.path.join(workspace_root, "docs/specs")
     if not os.path.exists(specs_dir):
-        return [], [f"{ep['method']} {ep['path']}" for ep in endpoints]
+        return [], [f"{ep['method']} {ep['path']}" for ep in endpoints], []
 
     spec_contents = ""
     for root, _, files in os.walk(specs_dir):
@@ -146,22 +138,45 @@ def check_specs(workspace_root, endpoints):
 
     matched_endpoints = []
     missing_endpoints = []
+    raw_missing_objs = []
 
     for ep in endpoints:
-        # Match HTTP method and path
         if (ep["path"] in spec_contents or 
             f"/app-api{ep['path']}" in spec_contents or 
             f"/admin-api{ep['path']}" in spec_contents):
             matched_endpoints.append(f"{ep['method']} {ep['path']}")
         else:
             missing_endpoints.append(f"{ep['method']} {ep['path']} (Controller: {ep['controller']})")
+            raw_missing_objs.append(ep)
 
-    return matched_endpoints, missing_endpoints
+    return matched_endpoints, missing_endpoints, raw_missing_objs
+
+def auto_heal_specs(workspace_root, missing_objs):
+    """
+    Auto-heals docs/specs by appending newly discovered endpoints from code.
+    """
+    if not missing_objs:
+        return False
+
+    specs_dir = Path(workspace_root) / "docs" / "specs"
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    
+    spec_files = list(specs_dir.glob("*.md"))
+    target_spec = spec_files[0] if spec_files else specs_dir / "001_auto_discovered_spec.md"
+
+    append_lines = ["\n\n### 🔄 Auto-Synchronized Endpoints (Auto-Healed by Audit Engine)\n"]
+    for ep in missing_objs:
+        append_lines.append(f"- `{ep['method']} {ep['path']}` - Discovered from `{ep['controller']}`\n")
+
+    current_content = target_spec.read_text(encoding="utf-8") if target_spec.exists() else "# Auto Discovered Specifications\n"
+    target_spec.write_text(current_content + "".join(append_lines), encoding="utf-8")
+    return True
 
 def main():
-    parser = argparse.ArgumentParser(description="Audit Doc System Health")
+    parser = argparse.ArgumentParser(description="Audit & Auto-Sync Doc System Health")
     parser.add_argument("--workspace", default=".", help="Workspace root directory")
     parser.add_argument("--module", action="append", help="Target business module(s) to audit (e.g. --module yudao-module-pet)")
+    parser.add_argument("--fix", "--auto-update", action="store_true", help="Automatically heal/sync missing endpoints into docs/specs")
     parser.add_argument("--strict", action="store_true", help="Fail with non-zero exit code if issues found")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
     args = parser.parse_args()
@@ -171,9 +186,15 @@ def main():
     core_docs_status = check_core_docs(workspace_root)
     endpoints = find_java_endpoints(workspace_root, target_modules=args.module or ["yudao-module-pet", "yudao-module-open"])
     domain_classes = find_domain_classes(workspace_root, target_modules=args.module or ["yudao-module-pet", "yudao-module-open"])
-    matched_eps, missing_eps = check_specs(workspace_root, endpoints)
+    matched_eps, missing_eps, raw_missing = check_specs(workspace_root, endpoints)
 
-    # Evaluate health
+    # If --fix / --auto-update is requested
+    if args.fix and raw_missing:
+        auto_heal_specs(workspace_root, raw_missing)
+        print(f"✨ Auto-Heal: Synchronized {len(raw_missing)} missing endpoints into docs/specs/")
+        # Re-check after fix
+        matched_eps, missing_eps, raw_missing = check_specs(workspace_root, endpoints)
+
     all_healthy = True
     reasons = []
 
@@ -212,7 +233,7 @@ def main():
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
         print("=" * 60)
-        print("📄 Open-SWE Documentation System Health Audit")
+        print("📄 Open-SWE Documentation System Health & Auto-Sync")
         print("=" * 60)
         print(f"• Root AGENTS.md: {'✅ Found (' + str(agents_status['root_agents_md']['line_count']) + ' lines)' if agents_status['root_agents_md']['exists'] else '❌ Missing'}")
         print(f"• Core Docs: {sum(core_docs_status.values())}/{len(core_docs_status)} artifacts present")
@@ -221,7 +242,7 @@ def main():
         if all_healthy:
             print("\n✅ Status: PASSED (All docs, code endpoints, and token budgets comply 100%)")
         else:
-            print("\n❌ Status: FAILED")
+            print("\n❌ Status: FAILED (Run with --fix to automatically synchronize missing endpoints)")
             for r in reasons:
                 print(f"  - {r}")
 
