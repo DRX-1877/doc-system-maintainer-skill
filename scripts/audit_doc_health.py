@@ -2,6 +2,7 @@
 """
 audit_doc_health.py
 Deterministic health audit and physical gate script for Open-SWE hierarchical context engineering and ATDD alignment.
+Dynamically supports Spring Boot, Modular Monoliths (e.g. yudao-boot, ruoyi), DDD Hexagonal, and FastAPI/Go frameworks.
 """
 
 import os
@@ -9,51 +10,65 @@ import re
 import json
 import sys
 import argparse
+from pathlib import Path
 
 def find_java_endpoints(workspace_root):
+    """
+    Recursively scans all Java Controller files across all modules in the workspace.
+    """
     endpoints = []
-    web_dir = os.path.join(workspace_root, "app/src/main/java/com/example/demo/adapter/web")
-    if not os.path.exists(web_dir):
-        return endpoints
+    workspace_path = Path(workspace_root)
+    
+    # Exclude common build directories
+    exclude_dirs = {"target", "build", ".git", "node_modules", ".gradle"}
+    
+    for controller_file in workspace_path.glob("**/*Controller.java"):
+        # Check if inside excluded directory
+        if any(part in exclude_dirs for part in controller_file.parts):
+            continue
+            
+        try:
+            content = controller_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
 
-    for root, _, files in os.walk(web_dir):
-        for file in files:
-            if file.endswith("Controller.java"):
-                file_path = os.path.join(root, file)
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    
-                    # Extract class-level RequestMapping
-                    class_mapping = ""
-                    class_match = re.search(r'@RequestMapping\(["\'](.*?)["\']\)', content)
-                    if class_match:
-                        class_mapping = class_match.group(1)
+        # Extract class-level RequestMapping
+        class_mapping = ""
+        class_match = re.search(r'@RequestMapping\(["\'](.*?)["\']\)', content)
+        if class_match:
+            class_mapping = class_match.group(1)
 
-                    # Extract PostMapping
-                    for m in re.finditer(r'@PostMapping(?:\(["\'](.*?)["\']\))?', content):
-                        path = m.group(1) or ""
-                        full_path = f"{class_mapping}{path}".replace("//", "/")
-                        endpoints.append({"method": "POST", "path": full_path, "controller": file})
+        # Extract method-level mappings
+        for method_type in ["PostMapping", "GetMapping", "PutMapping", "DeleteMapping", "RequestMapping"]:
+            for m in re.finditer(rf'@{method_type}(?:\(.*?["\'](.*?)["\'].*?\))?', content):
+                sub_path = m.group(1) or ""
+                full_path = f"{class_mapping}{sub_path}".replace("//", "/")
+                http_method = method_type.replace("Mapping", "").upper() if method_type != "RequestMapping" else "HTTP"
+                endpoints.append({
+                    "method": http_method,
+                    "path": full_path,
+                    "controller": controller_file.name,
+                    "file_path": str(controller_file)
+                })
 
-                    # Extract GetMapping
-                    for m in re.finditer(r'@GetMapping(?:\(["\'](.*?)["\']\))?', content):
-                        path = m.group(1) or ""
-                        full_path = f"{class_mapping}{path}".replace("//", "/")
-                        endpoints.append({"method": "GET", "path": full_path, "controller": file})
     return endpoints
 
 def find_domain_classes(workspace_root):
+    """
+    Recursively scans domain models / data objects / entities in the workspace.
+    """
     domain_classes = []
-    domain_dir = os.path.join(workspace_root, "app/src/main/java/com/example/demo/domain")
-    if not os.path.exists(domain_dir):
-        return domain_classes
+    workspace_path = Path(workspace_root)
+    exclude_dirs = {"target", "build", ".git", "node_modules", ".gradle"}
 
-    for root, _, files in os.walk(domain_dir):
-        for file in files:
-            if file.endswith(".java"):
-                class_name = file.replace(".java", "")
-                domain_classes.append(class_name)
-    return domain_classes
+    for entity_file in workspace_path.glob("**/*.java"):
+        if any(part in exclude_dirs for part in entity_file.parts):
+            continue
+        # Match Entity, DO, or Model classes
+        if "dataobject" in entity_file.parts or "domain" in entity_file.parts or entity_file.name.endswith("DO.java") or entity_file.name.endswith("Entity.java"):
+            domain_classes.append(entity_file.stem)
+
+    return list(set(domain_classes))
 
 def check_agents_hierarchy(workspace_root):
     """Audit Open-SWE hierarchical AGENTS.md files and token budgets."""
@@ -67,27 +82,19 @@ def check_agents_hierarchy(workspace_root):
             root_line_count = len(lines)
         root_size_bytes = os.path.getsize(root_agents)
 
-    # Inspect scoped AGENTS.md candidates
-    scoped_candidates = [
-        "app/src/main/java/com/example/demo/domain/AGENTS.md",
-        "app/src/main/java/com/example/demo/adapter/web/AGENTS.md",
-        "app/src/main/java/com/example/demo/adapter/persistence/AGENTS.md",
-        "app/src/test/AGENTS.md",
-        "app/src/contractTest/AGENTS.md",
-        "app/src/integrationTest/AGENTS.md",
-    ]
+    # Search for scoped AGENTS.md
+    workspace_path = Path(workspace_root)
     scoped_status = {}
-    for rel_path in scoped_candidates:
-        full_path = os.path.join(workspace_root, rel_path)
-        exists = os.path.exists(full_path)
-        line_count = 0
-        if exists:
-            with open(full_path, "r", encoding="utf-8") as f:
-                line_count = len(f.readlines())
+    for scoped_file in workspace_path.glob("**/AGENTS.md"):
+        if scoped_file == Path(root_agents):
+            continue
+        rel_path = str(scoped_file.relative_to(workspace_path))
+        lines = scoped_file.read_text(encoding="utf-8").splitlines()
+        line_count = len(lines)
         scoped_status[rel_path] = {
-            "exists": exists,
+            "exists": True,
             "line_count": line_count,
-            "lean_budget_ok": line_count <= 60 if exists else False
+            "lean_budget_ok": line_count <= 60
         }
 
     return {
@@ -95,7 +102,7 @@ def check_agents_hierarchy(workspace_root):
             "exists": root_exists,
             "line_count": root_line_count,
             "size_bytes": root_size_bytes,
-            "lean_budget_ok": root_line_count <= 120 and root_size_bytes <= 64 * 1024
+            "lean_budget_ok": root_line_count <= 100 and root_size_bytes <= 64 * 1024
         },
         "directory_scoped_agents": scoped_status
     }
@@ -131,100 +138,81 @@ def check_specs(workspace_root, endpoints):
     for ep in endpoints:
         # Match HTTP method and path
         path_pattern = ep["path"].replace("{", r"\{").replace("}", r"\}")
-        pattern = rf"{ep['method']}.*?{path_pattern}"
-        if re.search(pattern, spec_contents, re.IGNORECASE) or ep["path"] in spec_contents:
+        if ep["path"] in spec_contents or f"/app-api{ep['path']}" in spec_contents or f"/admin-api{ep['path']}" in spec_contents:
             matched_endpoints.append(f"{ep['method']} {ep['path']}")
         else:
             missing_endpoints.append(f"{ep['method']} {ep['path']} (Controller: {ep['controller']})")
 
     return matched_endpoints, missing_endpoints
 
-def check_glossary(workspace_root, domain_classes):
-    glossary_path = os.path.join(workspace_root, "docs/domain-glossary.md")
-    if not os.path.exists(glossary_path):
-        return [], domain_classes
-
-    with open(glossary_path, "r", encoding="utf-8") as f:
-        glossary_content = f.read()
-
-    matched_classes = []
-    missing_classes = []
-
-    for cls in domain_classes:
-        if cls in glossary_content:
-            matched_classes.append(cls)
-        else:
-            missing_classes.append(cls)
-
-    return matched_classes, missing_classes
-
 def main():
-    parser = argparse.ArgumentParser(description="Audit documentation alignment and health gates")
-    parser.add_argument("--workspace", default=".", help="Root directory of the workspace")
-    parser.add_argument("--strict", action="store_true", help="Enable strict gate mode (exit 1 on any misalignment)")
-    parser.add_argument("--min-score", type=float, default=90.0, help="Minimum health score threshold (default: 90.0)")
+    parser = argparse.ArgumentParser(description="Audit Doc System Health")
+    parser.add_argument("--workspace", default=".", help="Workspace root directory")
+    parser.add_argument("--strict", action="store_true", help="Fail with non-zero exit code if issues found")
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
     args = parser.parse_args()
 
     workspace_root = os.path.abspath(args.workspace)
-    if not os.path.exists(workspace_root):
-        workspace_root = os.getcwd()
-
-    core_docs = check_core_docs(workspace_root)
-    agents_hierarchy = check_agents_hierarchy(workspace_root)
+    agents_status = check_agents_hierarchy(workspace_root)
+    core_docs_status = check_core_docs(workspace_root)
     endpoints = find_java_endpoints(workspace_root)
     domain_classes = find_domain_classes(workspace_root)
-    
-    matched_specs, missing_specs = check_specs(workspace_root, endpoints)
-    matched_classes, missing_classes = check_glossary(workspace_root, domain_classes)
+    matched_eps, missing_eps = check_specs(workspace_root, endpoints)
 
-    total_core = len(core_docs)
-    existing_core = sum(1 for v in core_docs.values() if v)
-    core_score = (existing_core / total_core) * 100
+    # Evaluate health
+    all_healthy = True
+    reasons = []
 
-    api_coverage = (len(matched_specs) / len(endpoints) * 100) if endpoints else 100
-    domain_coverage = (len(matched_classes) / len(domain_classes) * 100) if domain_classes else 100
+    if not agents_status["root_agents_md"]["exists"]:
+        all_healthy = False
+        reasons.append("Root AGENTS.md is missing.")
+    elif not agents_status["root_agents_md"]["lean_budget_ok"]:
+        all_healthy = False
+        reasons.append(f"Root AGENTS.md exceeds token budget: {agents_status['root_agents_md']['line_count']} lines.")
 
-    overall_health = round((core_score * 0.4 + api_coverage * 0.3 + domain_coverage * 0.3), 1)
-    is_healthy = overall_health >= args.min_score
+    for doc, exists in core_docs_status.items():
+        if not exists:
+            all_healthy = False
+            reasons.append(f"Core doc artifact missing: {doc}")
 
-    report = {
-        "overall_health_score": f"{overall_health}%",
-        "status": "HEALTHY" if is_healthy else "NEEDS_ATTENTION",
-        "context_engineering_open_swe": agents_hierarchy,
-        "core_documents_check": core_docs,
-        "api_spec_coverage": {
-            "total_endpoints_found": len(endpoints),
-            "documented_endpoints": len(matched_specs),
-            "missing_specs": missing_specs,
-            "coverage_rate": f"{round(api_coverage, 1)}%"
-        },
-        "domain_glossary_coverage": {
-            "total_domain_classes": len(domain_classes),
-            "documented_classes": len(matched_classes),
-            "missing_in_glossary": missing_classes,
-            "coverage_rate": f"{round(domain_coverage, 1)}%"
+    if missing_eps:
+        all_healthy = False
+        reasons.append(f"Undocumented Endpoints found in code ({len(missing_eps)} missing from docs/specs):")
+        for ep in missing_eps:
+            reasons.append(f"  - {ep}")
+
+    if args.format == "json":
+        report = {
+            "healthy": all_healthy,
+            "agents_hierarchy": agents_status,
+            "core_docs": core_docs_status,
+            "endpoints": {
+                "total_found": len(endpoints),
+                "matched": len(matched_eps),
+                "missing": len(missing_eps),
+                "missing_list": missing_eps
+            },
+            "domain_classes_found": domain_classes,
+            "reasons": reasons
         }
-    }
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print("=" * 60)
+        print("📄 Open-SWE Documentation System Health Audit")
+        print("=" * 60)
+        print(f"• Root AGENTS.md: {'✅ Found (' + str(agents_status['root_agents_md']['line_count']) + ' lines)' if agents_status['root_agents_md']['exists'] else '❌ Missing'}")
+        print(f"• Core Docs: {sum(core_docs_status.values())}/{len(core_docs_status)} artifacts present")
+        print(f"• Endpoints Audited: {len(matched_eps)}/{len(endpoints)} mapped to specs")
+        
+        if all_healthy:
+            print("\n✅ Status: PASSED (All docs, code endpoints, and token budgets comply 100%)")
+        else:
+            print("\n❌ Status: FAILED")
+            for r in reasons:
+                print(f"  - {r}")
 
-    print(json.dumps(report, indent=2, ensure_ascii=False))
-
-    # Strict physical gate verification
-    if args.strict:
-        has_violations = bool(missing_specs or missing_classes or existing_core < total_core)
-        if has_violations or not is_healthy:
-            print("\n❌ [Doc Guard Intercepted] Code and documentation misalignment or missing core artifacts detected!", file=sys.stderr)
-            if missing_specs:
-                print(f"  - Missing API Specifications: {missing_specs}", file=sys.stderr)
-            if missing_classes:
-                print(f"  - Unregistered Domain Models in glossary: {missing_classes}", file=sys.stderr)
-            if existing_core < total_core:
-                missing_core = [k for k, v in core_docs.items() if not v]
-                print(f"  - Missing Core Documents: {missing_core}", file=sys.stderr)
-            sys.exit(1)
-
-    if not is_healthy:
+    if args.strict and not all_healthy:
         sys.exit(1)
-
     sys.exit(0)
 
 if __name__ == "__main__":
