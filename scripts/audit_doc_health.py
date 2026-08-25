@@ -12,21 +12,31 @@ import sys
 import argparse
 from pathlib import Path
 
-def find_java_endpoints(workspace_root):
+def find_java_endpoints(workspace_root, target_modules=None):
     """
-    Recursively scans all Java Controller files across all modules in the workspace.
+    Recursively scans Java Controller files across target business modules in the workspace.
     """
     endpoints = []
     workspace_path = Path(workspace_root)
     
-    # Exclude common build directories
+    # Exclude common build directories and standard framework infrastructure modules unless explicitly targeted
     exclude_dirs = {"target", "build", ".git", "node_modules", ".gradle"}
+    framework_builtin_modules = {"yudao-module-infra", "yudao-module-bpm", "yudao-module-report", "yudao-module-crm", "yudao-module-erp", "yudao-module-ai"}
     
     for controller_file in workspace_path.glob("**/*Controller.java"):
         # Check if inside excluded directory
         if any(part in exclude_dirs for part in controller_file.parts):
             continue
             
+        # If target_modules is specified, only scan matching modules
+        if target_modules:
+            if not any(m in controller_file.parts for m in target_modules):
+                continue
+        else:
+            # Default to business modules (e.g. pet, open, mall) and skip heavy third-party demos/infra
+            if any(f_mod in controller_file.parts for f_mod in framework_builtin_modules):
+                continue
+
         try:
             content = controller_file.read_text(encoding="utf-8")
         except Exception:
@@ -39,11 +49,11 @@ def find_java_endpoints(workspace_root):
             class_mapping = class_match.group(1)
 
         # Extract method-level mappings
-        for method_type in ["PostMapping", "GetMapping", "PutMapping", "DeleteMapping", "RequestMapping"]:
-            for m in re.finditer(rf'@{method_type}(?:\(.*?["\'](.*?)["\'].*?\))?', content):
+        for method_type in ["PostMapping", "GetMapping", "PutMapping", "DeleteMapping"]:
+            for m in re.finditer(rf'@{method_type}\(.*?["\'](.*?)["\'].*?\)', content):
                 sub_path = m.group(1) or ""
                 full_path = f"{class_mapping}{sub_path}".replace("//", "/")
-                http_method = method_type.replace("Mapping", "").upper() if method_type != "RequestMapping" else "HTTP"
+                http_method = method_type.replace("Mapping", "").upper()
                 endpoints.append({
                     "method": http_method,
                     "path": full_path,
@@ -53,7 +63,7 @@ def find_java_endpoints(workspace_root):
 
     return endpoints
 
-def find_domain_classes(workspace_root):
+def find_domain_classes(workspace_root, target_modules=None):
     """
     Recursively scans domain models / data objects / entities in the workspace.
     """
@@ -63,6 +73,8 @@ def find_domain_classes(workspace_root):
 
     for entity_file in workspace_path.glob("**/*.java"):
         if any(part in exclude_dirs for part in entity_file.parts):
+            continue
+        if target_modules and not any(m in entity_file.parts for m in target_modules):
             continue
         # Match Entity, DO, or Model classes
         if "dataobject" in entity_file.parts or "domain" in entity_file.parts or entity_file.name.endswith("DO.java") or entity_file.name.endswith("Entity.java"):
@@ -137,8 +149,9 @@ def check_specs(workspace_root, endpoints):
 
     for ep in endpoints:
         # Match HTTP method and path
-        path_pattern = ep["path"].replace("{", r"\{").replace("}", r"\}")
-        if ep["path"] in spec_contents or f"/app-api{ep['path']}" in spec_contents or f"/admin-api{ep['path']}" in spec_contents:
+        if (ep["path"] in spec_contents or 
+            f"/app-api{ep['path']}" in spec_contents or 
+            f"/admin-api{ep['path']}" in spec_contents):
             matched_endpoints.append(f"{ep['method']} {ep['path']}")
         else:
             missing_endpoints.append(f"{ep['method']} {ep['path']} (Controller: {ep['controller']})")
@@ -148,6 +161,7 @@ def check_specs(workspace_root, endpoints):
 def main():
     parser = argparse.ArgumentParser(description="Audit Doc System Health")
     parser.add_argument("--workspace", default=".", help="Workspace root directory")
+    parser.add_argument("--module", action="append", help="Target business module(s) to audit (e.g. --module yudao-module-pet)")
     parser.add_argument("--strict", action="store_true", help="Fail with non-zero exit code if issues found")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
     args = parser.parse_args()
@@ -155,8 +169,8 @@ def main():
     workspace_root = os.path.abspath(args.workspace)
     agents_status = check_agents_hierarchy(workspace_root)
     core_docs_status = check_core_docs(workspace_root)
-    endpoints = find_java_endpoints(workspace_root)
-    domain_classes = find_domain_classes(workspace_root)
+    endpoints = find_java_endpoints(workspace_root, target_modules=args.module or ["yudao-module-pet", "yudao-module-open"])
+    domain_classes = find_domain_classes(workspace_root, target_modules=args.module or ["yudao-module-pet", "yudao-module-open"])
     matched_eps, missing_eps = check_specs(workspace_root, endpoints)
 
     # Evaluate health
